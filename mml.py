@@ -18,17 +18,34 @@ def parse_int(s):
         pass
     return val, offs
 
-def extend_macro(mml):
+
+macro_dict = {}
+def generate_chord_macro():
+    # major/minor triad, with rotation
+    chromatic_scale = ['c','c+','d','d+','e','f','f+','g','g+','a','a+','b']
+    for i,base in enumerate('CDEFGAB'):
+        for j,sign in enumerate(['-', '', '+']):
+            for k,scale in enumerate(['', 'm']):
+                for l,rotation in enumerate(['', '^', '^^']):
+                    name = base + sign + scale + rotation
+                    base_pitch = [0,2,4,5,7,9,11][i] + j + 11
+                    chord_pitch = [base_pitch, base_pitch + 4 - k, base_pitch + 7, base_pitch + 12, base_pitch + 16 - k]
+                    chord_string = '"' + ''.join([chromatic_scale[p%12] for p in chord_pitch[l:l+3]]) + '"'
+                    macro_dict[name] = chord_string
+generate_chord_macro()
+
+
+def extend_macro(mml): # eval する仕様にこだわるのやめませんか？あと，コードはデフォでマクロ定義されていてほしい．
     ret = ''
     offs = 0
     while offs < len(mml):
         c = mml[offs]
         if 'A' <= c <= 'Z':
             accepted_offs = offs+1
-            for offs2 in range(offs+1, len(mml)):
-                if not 'A' <= mml[offs2-1] <= 'Z': break # name of macro must be CAPITAL
-                if mml[offs:offs2] in globals():
-                    c = eval(mml[offs:offs2])
+            for offs2 in range(offs+1, len(mml)+1):
+                if mml[offs2-1] == ' ': break # name of macro must not contain space.
+                if mml[offs:offs2] in macro_dict:
+                    c = macro_dict[mml[offs:offs2]]
                     accepted_offs = offs2
             offs = accepted_offs
             ret += c
@@ -108,7 +125,7 @@ def read_mml(mml):
                 continue                
         if '0' <= c <= '9' and not in_chord: # temporary l-setting
             l, delta_offs = parse_int(mml[offs:])
-            dur_list[-1] = 4/l
+            dur_list[-1] = fd.rest(4/l) if isinstance(dur_list[-1], fd.lib.Players.rest) else 4/l
             offs += delta_offs
             continue
         # other commands
@@ -140,15 +157,19 @@ def read_mml(mml):
         dur_list[-1] *= 2 - 0.5**futen; futen = 0 # clear futen
     return pitch_list, dur_list
 
-def play_mml(obj, mml, inst=fd.saw):
+def play_mml(obj, mml, inst=fd.saw, **kwargs):
     pitch_list, dur_list = read_mml(mml)
-    obj >> inst(pitch_list, dur=dur_list, scale=fd.Scale.chromatic)
+    obj >> inst(pitch_list, dur=dur_list, scale=fd.Scale.chromatic, **kwargs)
 
+def def_macro(key, value):
+    macro_dict[key] = value
+    # いずれもう少し便利なインタフェースにしたい
 
 # =================================================
 
 
 if __name__ == '__main__':
-    C = '"ceg"'
-    print(read_mml('l2 C o3"b-df","ace","gb-d"'))
+    print(read_mml('l4 C C < G^ G^ > Am^ Am^ F^^ F^^'))
+
+    # print(macro_dict)
 
