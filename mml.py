@@ -21,21 +21,42 @@ def parse_int(s):
 
 macro_dict = {}
 def generate_chord_macro():
-    # major/minor triad, with rotation
     chromatic_scale = ['c','c+','d','d+','e','f','f+','g','g+','a','a+','b']
+    major_pitch = [0,2,4,5,7,9,11]
     for i,base in enumerate('CDEFGAB'):
         for j,sign in enumerate(['-', '', '+']):
-            for k,scale in enumerate(['', 'm']):
-                for l,rotation in enumerate(['', '^', '^^']):
-                    name = base + sign + scale + rotation
-                    base_pitch = [0,2,4,5,7,9,11][i] + j + 11
-                    chord_pitch = [base_pitch, base_pitch + 4 - k, base_pitch + 7, base_pitch + 12, base_pitch + 16 - k]
-                    chord_string = '"' + ''.join([chromatic_scale[p%12] for p in chord_pitch[l:l+3]]) + '"'
+            base_pitch = major_pitch[i] + j + 11
+
+            chord_info = [
+                ('', [0, 4, 7]), # Major
+                ('P', [0, 7, 16]), # Major (distributed)
+                ('m', [0, 3, 7]), # minor
+                ('mP', [0, 7, 15]), # minor (distributed)
+                ('6', [0, 4, 7, 9]),
+                ('m6', [0, 3, 7, 9]),
+                ('7', [0, 4, 7, 10]),
+                ('37', [0, 4, 10]),
+                ('57', [0, 7, 10]),
+                ('M7', [0, 4, 7, 11]),
+                ('M57', [0, 7, 11]),
+                ('m7', [0, 3, 7, 10]),
+                ('m57', [0, 7, 10]),
+                ('dim', [0, 3, 6]),
+                ('aug', [0, 4, 8]),
+                ('sus4', [0, 5, 7]),
+            ]
+            for chord_symbol, chord_pitch in chord_info:
+                for l in range(len(chord_pitch)): # number of rotation
+                    name = base + sign + chord_symbol + '^' * l                
+                    chord_string = '"' + ''.join([
+                        chromatic_scale[(base_pitch + p)%12] for p in chord_pitch[l:]+chord_pitch[:l]
+                    ]) + '"'
                     macro_dict[name] = chord_string
+
 generate_chord_macro()
 
 
-def extend_macro(mml): # eval する仕様にこだわるのやめませんか？あと，コードはデフォでマクロ定義されていてほしい．
+def extend_macro(mml):
     ret = ''
     offs = 0
     while offs < len(mml):
@@ -73,7 +94,7 @@ def extend_chord(mml):
 def read_mml(mml):
     mml = extend_chord(mml)
     mml = extend_macro(mml)
-    print(mml)
+    print('macro extended: {}'.format(mml))
     pitch_list, dur_list = [], []
     val_l = 4
     val_o = 4
@@ -157,11 +178,13 @@ def read_mml(mml):
         dur_list[-1] *= 2 - 0.5**futen; futen = 0 # clear futen
     return pitch_list, dur_list
 
-def play_mml(obj, mml, inst=fd.saw, **kwargs):
+def play_mml(obj, mml, synth=fd.saw, **kwargs):
     pitch_list, dur_list = read_mml(mml)
-    obj >> inst(pitch_list, dur=dur_list, scale=fd.Scale.chromatic, **kwargs)
+    obj >> synth(pitch_list, dur=dur_list, scale=fd.Scale.chromatic, **kwargs)
 
 def def_macro(key, value):
+    if ' ' in key:
+        raise ValueError('Macro keys must not contain spaces.')
     macro_dict[key] = value
     # いずれもう少し便利なインタフェースにしたい
 
@@ -171,5 +194,5 @@ def def_macro(key, value):
 if __name__ == '__main__':
     print(read_mml('l4 C C < G^ G^ > Am^ Am^ F^^ F^^'))
 
-    # print(macro_dict)
+    print(macro_dict)
 
