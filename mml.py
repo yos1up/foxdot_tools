@@ -5,6 +5,27 @@ Recommended Usage:
 (1) Launch FoxDot
 (2) Exec `from mml import *`
 (3) Enjoy
+主に play_mml メソッドが有用です．
+--------
+
+TODO: もっとコマンドをいろいろ対応する．
+TODO: MML は規格が乱立気味なので，どこのものに対応していく予定かをある程度決める．
+TODO: 一時的に音価を変更するコマンド？
+TODO: 音色一覧を表示するコマンド？
+TODO: 確率的に演奏するコマンド？
+TODO: トラックを .stop() した後 restart する方法
+TODO: 手軽に移調する方法．
+
+# ルーパーを使って（PCなしに）即興演奏するのとの比べて live coding の良さは？
+・急な展開とかを狙って作れる（一気に色々なパートを変更したり）
+・このアルゴリズムすごい！みたいなのが魅せられる？
+・12平均律にない音も気軽に出せる
+・乱数
+・物理モデル：リアルタイムで「楽器」を作っていくような体験ができるかも？
+・機械学習
+・「コンピュータサイエンスのあらゆる分野に精通しているライブコーダー」
+・メロディーの代わりに loss func を打ち込むとそれを最小化するようなメロディーが再生される？？
+
 '''
 import FoxDot as fd
 
@@ -38,8 +59,10 @@ def generate_chord_macro():
             chord_info = [
                 ('', [0, 4, 7]), # Major
                 ('O', [0, 7, 16]), # Major (open-voicing)
+                ('8O', [0, 7, 12, 16]), # Major (open-voicing)
                 ('m', [0, 3, 7]), # minor
                 ('mO', [0, 7, 15]), # minor (open-voicing)
+                ('m8O', [0, 7, 12, 15]), # minor (open-voicing)
                 ('3', [0, 4]),
                 ('m3', [0, 3]),
                 ('5', [0, 7]),
@@ -69,13 +92,10 @@ generate_chord_macro()
 '''
 そもそも文法規則として  Ceg と書けば（クオート記号なくても）和音になる，というのを導入しても良さそう．
 つまり，'A'~'G'で始まり空白文字で終わる塊を和音とみなす（自動でクオートで囲う）．
-
 その処理を行った上で，マクロも使用可能にしておく
 C は ceg に置換される
 C7 は cegb- に置換される
-
-
-待って，Ceg は "cegeg" なのか "ceg" なのかどっち？
+→ 待って，Ceg は "cegeg" なのか "ceg" なのかどっち？
 '''
 
 def quote_chord(mml):
@@ -149,7 +169,7 @@ def read_mml(mml):
                 in_chord = True
                 chord_val_o = val_o
                 offs += 1
-                continue                
+                continue
         if '0' <= c <= '9' and not in_chord: # temporary l-setting
             l, delta_offs = parse_int(mml[offs:])
             dur_list[-1] = fd.rest(4/l) if isinstance(dur_list[-1], fd.lib.Players.rest) else 4/l
@@ -204,6 +224,29 @@ def read_mml(mml):
     return pitch_list, dur_list
 
 def play_mml(obj, mml, synth=fd.saw, **kwargs):
+    """ MMLを演奏します.
+    ----
+    Args:
+        - obj (FoxDot.lib.Players.Player): p1 とか m1 とか
+        - mml (str): MML 文字列．以下の例参照
+        - synth (FoxDot.lib.SCLang.SynthDef.SynthDef): pluck とか star とか．デフォルトは saw
+        - それ以外のキーワード引数は synth(...) にそのまま渡されます．amp や sus などが有効．
+    Examples:
+        play_mml(m1, "l4cdefg", pluck)
+    MML の例:
+        - (かえるのうた) "l4 cdefedcr efgagfer crcrcrcr l8 ccddeefferdrcrrr"
+        - (ふるさと) "l4 ccc d.e8d eefg2. fga e.f8e dd<b>c2."
+    MML 対応コマンド:
+        cdefgabr.<>lo-+k"'
+       上記に加えてコードマクロ（独自定義）が利用可能です．
+           C => "ceg"
+           C^ => "egc" (第一転回)
+           C^^ => "gce" (第二転回)
+           CO => "cge" (Open-voicing)
+           Csus4 => "cfg"
+           他（全ての定義済みマクロは generate_chord_macro の定義を参照ください）
+        最初にマクロが展開された後，MML 文字列として解釈されます．
+    """
     pitch_list, dur_list = read_mml(mml)
     obj >> synth(pitch_list, dur=dur_list, scale=fd.Scale.chromatic, **kwargs)
 
@@ -214,13 +257,25 @@ def def_macro(key, value):
         raise ValueError('Macro keys must not be "".')
     elif not 'A' <= key[0] <= 'Z':
         raise ValueError('The first letter of the macro key must be CAPITAL.')
-    
+
     macro_dict[key] = value
-    
+
 # TODO: アルベジエータ？（コードの積み重ね記法は便利なのでそれに乗っかる形で）
 def def_arp():
     pass
     # これ FoxDot の機能としてないの？パターンジェネレートとかアルペジオとか
+    '''
+    コードの「演奏法」を指定できる．
+    通常 'l2 "ceg"' は 和音として演奏されるが，
+    これを 'l8 cgeg' のような演奏法に変更することができるイメージ．
+
+    この置き換えで，'"gbe"' は 'g>e<b>e' の演奏法で演奏されてほしい．
+    オクターブ変化位置が動的に変わるので，MML文字列への変換ではなく，
+    「演奏法」（FoxDot 形式への変換規則）として扱った方が良さそう．
+
+    アルペジエータの名前と，演奏法を表す文字列 'l8 acbc' だけ与えれば良い？
+    （ここでは A,a,b,c,d,e,f,g は引数を表す文字として用いることにする (Aはコード直弾き)）
+    '''
 
 # =================================================
 
@@ -229,4 +284,3 @@ if __name__ == '__main__':
     print(read_mml(''))
 
     # print(macro_dict)
-
