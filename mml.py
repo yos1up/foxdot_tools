@@ -223,8 +223,10 @@ def read_mml(mml):
         dur_list[-1] *= 2 - 0.5**futen; futen = 0 # clear futen
     return pitch_list, dur_list
 
+
 def play_mml(obj, mml, synth=fd.saw, **kwargs):
-    """ MMLを演奏します.
+    u"""MMLを演奏します.
+
     ----
     Args:
         - obj (FoxDot.lib.Players.Player): p1 とか m1 とか
@@ -232,13 +234,21 @@ def play_mml(obj, mml, synth=fd.saw, **kwargs):
         - synth (FoxDot.lib.SCLang.SynthDef.SynthDef): pluck とか star とか．デフォルトは saw
         - それ以外のキーワード引数は synth(...) にそのまま渡されます．amp や sus などが有効．
     Examples:
-        play_mml(m1, "l4cdefg", pluck)
+        play_mml(m1, "l4cdefg")
+        play_mml(m1, "o5l1 'egb'", star)
     MML の例:
         - (かえるのうた) "l4 cdefedcr efgagfer crcrcrcr l8 ccddeefferdrcrrr"
         - (ふるさと) "l4 ccc d.e8d eefg2. fga e.f8e dd<b>c2."
     MML 対応コマンド:
-        cdefgabr.<>lo-+k"'
-       上記に加えてコードマクロ（独自定義）が利用可能です．
+        cdefgabr (音符，休符)
+        -+ (フラット・シャープ)
+        . (付点)
+        >< (オクターブ上下)
+        l (音価指定)
+        o (オクターブ指定)
+        k (キートランスポーズ)
+        "' (和音)
+        上記に加えてコードマクロ（独自定義）が利用可能です．
            C => "ceg"
            C^ => "egc" (第一転回)
            C^^ => "gce" (第二転回)
