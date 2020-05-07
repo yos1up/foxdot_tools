@@ -9,20 +9,8 @@ Recommended Usage:
 --------
 
 TODO: MML は規格が乱立気味なので，どこのものに対応していく予定かをある程度決める．
-    - Wikipedia (https://ja.wikipedia.org/wiki/Music_Macro_Language)
-        主なコマンド cdefgab#+-r.&o><lv@t
-        やや一般的でないもの nqpsmy
-        タイは &
-    - プチコンMML ()
-        仕様どこ  
-    - IchigoJam MML (https://fukuno.jig.jp/892)
-        
-    - ピコカキコ ()
-        仕様どこ
-
-    - テキスト音楽サクラのMML
-    
-
+    https://docs.google.com/spreadsheets/d/1OVSLeYhjTLqdEHegvdAA3aFgFRQWiPIJ66e0hu8u6m8/edit#gid=0
+    にまとめてる
 
 TODO: 音色一覧を表示するコマンド？
 TODO: 確率的に演奏するコマンド？
