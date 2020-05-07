@@ -29,6 +29,7 @@ TODO: 手軽に移調する方法．
 '''
 import FoxDot as fd
 
+
 def parse_int(s):
     '''
     Args
@@ -49,20 +50,23 @@ def parse_int(s):
 
 
 macro_dict = {}
+
+
 def generate_chord_macro():
-    chromatic_scale = ['c','c+','d','d+','e','f','f+','g','g+','a','a+','b']
-    major_pitch = [0,2,4,5,7,9,11]
-    for i,base in enumerate('CDEFGAB'):
-        for j,sign in enumerate(['-', '', '+']):
+    chromatic_scale = ['c', 'c+', 'd', 'd+', 'e',
+                       'f', 'f+', 'g', 'g+', 'a', 'a+', 'b']
+    major_pitch = [0, 2, 4, 5, 7, 9, 11]
+    for i, base in enumerate('CDEFGAB'):
+        for j, sign in enumerate(['-', '', '+']):
             base_pitch = major_pitch[i] + j + 11
 
             chord_info = [
-                ('', [0, 4, 7]), # Major
-                ('O', [0, 7, 16]), # Major (open-voicing)
-                ('8O', [0, 7, 12, 16]), # Major (open-voicing)
-                ('m', [0, 3, 7]), # minor
-                ('mO', [0, 7, 15]), # minor (open-voicing)
-                ('m8O', [0, 7, 12, 15]), # minor (open-voicing)
+                ('', [0, 4, 7]),  # Major
+                ('O', [0, 7, 16]),  # Major (open-voicing)
+                ('8O', [0, 7, 12, 16]),  # Major (open-voicing)
+                ('m', [0, 3, 7]),  # minor
+                ('mO', [0, 7, 15]),  # minor (open-voicing)
+                ('m8O', [0, 7, 12, 15]),  # minor (open-voicing)
                 ('3', [0, 4]),
                 ('m3', [0, 3]),
                 ('5', [0, 7]),
@@ -81,12 +85,13 @@ def generate_chord_macro():
                 ('sus4O', [0, 7, 17]),
             ]
             for chord_symbol, chord_pitch in chord_info:
-                for l in range(len(chord_pitch)): # number of rotation
-                    name = base + sign + chord_symbol + '^' * l                
+                for l in range(len(chord_pitch)):  # number of rotation
+                    name = base + sign + chord_symbol + '^' * l
                     chord_string = '"' + ''.join([
-                        chromatic_scale[(base_pitch + p)%12] for p in chord_pitch[l:]+chord_pitch[:l]
+                        chromatic_scale[(base_pitch + p) % 12] for p in chord_pitch[l:]+chord_pitch[:l]
                     ]) + '"'
                     macro_dict[name] = chord_string
+
 
 generate_chord_macro()
 '''
@@ -97,6 +102,7 @@ C は ceg に置換される
 C7 は cegb- に置換される
 → 待って，Ceg は "cegeg" なのか "ceg" なのかどっち？
 '''
+
 
 def quote_chord(mml):
     return mml
@@ -110,6 +116,7 @@ def quote_chord(mml):
         offs += 1
     return mml
 
+
 def extend_macro(mml):
     ret = ''
     offs = 0
@@ -118,7 +125,8 @@ def extend_macro(mml):
         if 'A' <= c <= 'Z':
             accepted_offs = offs+1
             for offs2 in range(offs+1, len(mml)+1):
-                if mml[offs2-1] == ' ': break # name of macro must not contain space.
+                if mml[offs2-1] == ' ':
+                    break  # name of macro must not contain space.
                 if mml[offs:offs2] in macro_dict:
                     c = macro_dict[mml[offs:offs2]]
                     accepted_offs = offs2
@@ -128,6 +136,7 @@ def extend_macro(mml):
         ret += c
         offs += 1
     return ret
+
 
 def read_mml(mml):
     mml = quote_chord(mml)
@@ -145,43 +154,47 @@ def read_mml(mml):
     while offs < len(mml):
         c = mml[offs]
         n = 'cdefgabr'.find(c)
-        if n >= 0: # new note!
+        if n >= 0:  # new note!
             if futen > 0:
-                dur_list[-1] *= 2 - 0.5**futen; futen = 0 # clear futen
+                dur_list[-1] *= 2 - 0.5**futen
+                futen = 0  # clear futen
             if in_chord:
-                chord.append([0,2,4,5,7,9,11,0][n] + (chord_val_o-4)*12 + val_k)
+                chord.append([0, 2, 4, 5, 7, 9, 11, 0][n] +
+                             (chord_val_o-4)*12 + val_k)
                 if len(chord) > 1 and chord[-2] >= chord[-1]:
                     chord[-1] = 12 - (chord[-2] - chord[-1]) % 12 + chord[-2]
             else:
-                pitch_list.append([0,2,4,5,7,9,11,0][n] + (val_o-4)*12 + val_k)
-                dur_list.append(4/val_l if n<7 else fd.rest(4/val_l))
+                pitch_list.append([0, 2, 4, 5, 7, 9, 11, 0]
+                                  [n] + (val_o-4)*12 + val_k)
+                dur_list.append(4/val_l if n < 7 else fd.rest(4/val_l))
             offs += 1
             continue
         if c in ['"', "'"]:
-            if in_chord: # end of chord
+            if in_chord:  # end of chord
                 pitch_list.append(tuple(chord))
                 in_chord = False
                 chord = []
                 dur_list.append(4/val_l)
                 offs += 1
                 continue
-            else: # start of chord
+            else:  # start of chord
                 in_chord = True
                 chord_val_o = val_o
                 offs += 1
                 continue
-        if '0' <= c <= '9' and not in_chord: # temporary l-setting
+        if '0' <= c <= '9' and not in_chord:  # temporary l-setting
             l, delta_offs = parse_int(mml[offs:])
-            dur_list[-1] = fd.rest(4/l) if isinstance(dur_list[-1], fd.lib.Players.rest) else 4/l
+            dur_list[-1] = fd.rest(4/l) if isinstance(dur_list[-1],
+                                                      fd.lib.Players.rest) else 4/l
             offs += delta_offs
             continue
         # other commands
-        if c == 'l' and not in_chord: # length
+        if c == 'l' and not in_chord:  # length
             offs += 1
             val_l, delta_offs = parse_int(mml[offs:])
             offs += delta_offs
             continue
-        elif c == 'o': # octave
+        elif c == 'o':  # octave
             offs += 1
             val, delta_offs = parse_int(mml[offs:])
             if in_chord:
@@ -189,12 +202,12 @@ def read_mml(mml):
             else:
                 val_o = val
             offs += delta_offs
-            continue        
-        elif c == 'k' and not in_chord: # key-transpose
+            continue
+        elif c == 'k' and not in_chord:  # key-transpose
             offs += 1
             val_k, delta_offs = parse_int(mml[offs:])
             offs += delta_offs
-            continue        
+            continue
         elif c == '+':
             if in_chord:
                 chord[-1] += 1
@@ -220,7 +233,8 @@ def read_mml(mml):
         offs += 1
     # end of mml
     if futen > 0:
-        dur_list[-1] *= 2 - 0.5**futen; futen = 0 # clear futen
+        dur_list[-1] *= 2 - 0.5**futen
+        futen = 0  # clear futen
     return pitch_list, dur_list
 
 
@@ -260,6 +274,7 @@ def play_mml(obj, mml, synth=fd.saw, **kwargs):
     pitch_list, dur_list = read_mml(mml)
     obj >> synth(pitch_list, dur=dur_list, scale=fd.Scale.chromatic, **kwargs)
 
+
 def def_macro(key, value):
     if ' ' in key:
         raise ValueError('Macro keys must not contain spaces.')
@@ -271,6 +286,8 @@ def def_macro(key, value):
     macro_dict[key] = value
 
 # TODO: アルベジエータ？（コードの積み重ね記法は便利なのでそれに乗っかる形で）
+
+
 def def_arp():
     pass
     # これ FoxDot の機能としてないの？パターンジェネレートとかアルペジオとか
