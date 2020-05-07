@@ -8,13 +8,27 @@ Recommended Usage:
 主に play_mml メソッドが有用です．
 --------
 
-TODO: もっとコマンドをいろいろ対応する．
 TODO: MML は規格が乱立気味なので，どこのものに対応していく予定かをある程度決める．
-TODO: 一時的に音価を変更するコマンド？
+    - Wikipedia (https://ja.wikipedia.org/wiki/Music_Macro_Language)
+        主なコマンド cdefgab#+-r.&o><lv@t
+        やや一般的でないもの nqpsmy
+        タイは &
+    - プチコンMML ()
+        仕様どこ  
+    - IchigoJam MML (https://fukuno.jig.jp/892)
+        
+    - ピコカキコ ()
+        仕様どこ
+
+    - テキスト音楽サクラのMML
+    
+
+
 TODO: 音色一覧を表示するコマンド？
 TODO: 確率的に演奏するコマンド？
 TODO: トラックを .stop() した後 restart する方法
-TODO: 手軽に移調する方法．
+TODO: play_mml(p1, ...) より p1.play_mml(...) にする．他，トラック単位での操作をしたい．
+        FoxDot の track をオーバーライドすれば良い？
 
 # ルーパーを使って（PCなしに）即興演奏するのとの比べて live coding の良さは？
 ・急な展開とかを狙って作れる（一気に色々なパートを変更したり）
@@ -28,7 +42,6 @@ TODO: 手軽に移調する方法．
 
 '''
 import FoxDot as fd
-
 
 def parse_int(s):
     '''
@@ -138,15 +151,60 @@ def extend_macro(mml):
     return ret
 
 
-def read_mml(mml):
+def read_mml(mml, verbose=True):
+    """
+    ----
+    Args:
+        mml (str):
+            MML string. 対応コマンドは下記参照
+    Returns:
+        (
+            pitch_list, (list of (int or tuple-of-int)):
+                各時刻に発音するノートナンバーのリスト．
+                単音ならノートナンバーは単一の int として表現され，
+                和音ならノートナンバーは int の tuple として表現される．
+                ただしノートナンバーは C4 を 0 とする（FoxDot のデフォルトに準じて）．
+            dur_list (list of (int or FoxDot.lib.Players.rest)): 
+                音符長または休符長のリスト．長さの単位は拍数．
+        )
+    Examples:
+        read_mml("l4cderefg")
+            => ([0, 2, 4, 0, 4, 5, 7], [1.0, 1.0, 1.0, <rest: 1.0>, 1.0, 1.0, 1.0])
+        read_mml("o5l1 'egb'")
+            => ([(16, 19, 23)], [4.0])
+    MML の例:
+        - (かえるのうた) "l4 cdefedcr efgagfer crcrcrcr l8 ccddeefferdrcrrr"
+        - (ふるさと) "l4 ccc d.e8d eefg2. fga e.f8e dd<b>c2."
+    MML 対応コマンド:
+        cdefgabr (音符，休符)
+        -+ (フラット・シャープ)
+        . (付点)
+        >< (オクターブ上下)
+        l (音価指定)
+        o (オクターブ指定)
+        _~ (一時的なオクターブ指定)
+        k (キートランスポーズ)
+        "' (和音)
+        上記に加えてコードマクロ（独自定義）が利用可能です．
+           C => "ceg"
+           C^ => "egc" (第一転回)
+           C^^ => "gce" (第二転回)
+           CO => "cge" (Open-voicing)
+           Csus4 => "cfg"
+           他（全ての定義済みマクロは generate_chord_macro の定義を参照ください）
+        最初にマクロが展開された後，MML 文字列として解釈されます．  
+    """
     mml = quote_chord(mml)
-    print('chord quoted: {}'.format(mml))
+    if verbose:
+       print('chord quoted: {}'.format(mml))
     mml = extend_macro(mml)
-    print('macro extended: {}'.format(mml))
+    if verbose:
+        print('macro extended: {}'.format(mml))
     pitch_list, dur_list = [], []
-    val_l = 4
-    val_o = 4
-    val_k = 0
+    val_l = 4  # length (l4)
+    val_o = 4  # octave (o4)
+    val_k = 0  # key-transpose (k0)
+    val_temp_o = 0  # _, ~
     offs = 0
     futen = 0
     chord = []
@@ -160,13 +218,14 @@ def read_mml(mml):
                 futen = 0  # clear futen
             if in_chord:
                 chord.append([0, 2, 4, 5, 7, 9, 11, 0][n] +
-                             (chord_val_o-4)*12 + val_k)
+                             (chord_val_o - 4) * 12 + val_k)
                 if len(chord) > 1 and chord[-2] >= chord[-1]:
                     chord[-1] = 12 - (chord[-2] - chord[-1]) % 12 + chord[-2]
-            else:
+            else:  # single note
                 pitch_list.append([0, 2, 4, 5, 7, 9, 11, 0]
-                                  [n] + (val_o-4)*12 + val_k)
+                                  [n] + (val_o + val_temp_o - 4) * 12 + val_k)
                 dur_list.append(4/val_l if n < 7 else fd.rest(4/val_l))
+                val_temp_o = 0
             offs += 1
             continue
         if c in ['"', "'"]:
@@ -230,6 +289,10 @@ def read_mml(mml):
                 val_o -= 1
         elif c == '.':
             futen += 1
+        elif c == '~':
+            val_temp_o += 1
+        elif c == '_':
+            val_temp_o -= 1
         offs += 1
     # end of mml
     if futen > 0:
@@ -254,22 +317,7 @@ def play_mml(obj, mml, synth=fd.saw, **kwargs):
         - (かえるのうた) "l4 cdefedcr efgagfer crcrcrcr l8 ccddeefferdrcrrr"
         - (ふるさと) "l4 ccc d.e8d eefg2. fga e.f8e dd<b>c2."
     MML 対応コマンド:
-        cdefgabr (音符，休符)
-        -+ (フラット・シャープ)
-        . (付点)
-        >< (オクターブ上下)
-        l (音価指定)
-        o (オクターブ指定)
-        k (キートランスポーズ)
-        "' (和音)
-        上記に加えてコードマクロ（独自定義）が利用可能です．
-           C => "ceg"
-           C^ => "egc" (第一転回)
-           C^^ => "gce" (第二転回)
-           CO => "cge" (Open-voicing)
-           Csus4 => "cfg"
-           他（全ての定義済みマクロは generate_chord_macro の定義を参照ください）
-        最初にマクロが展開された後，MML 文字列として解釈されます．
+        read_mml の docstring を参照．
     """
     pitch_list, dur_list = read_mml(mml)
     obj >> synth(pitch_list, dur=dur_list, scale=fd.Scale.chromatic, **kwargs)
